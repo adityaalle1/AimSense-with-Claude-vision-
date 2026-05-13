@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AimSense AI — FPS Aim Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #080810; --bg-card: #0e0e1a; --bg-card2: #13131f;
+      --border: #1e1e30; --accent: #6366f1; --accent-glow: rgba(99,102,241,0.22);
+      --cyan: #22d3ee; --success: #22c55e; --warning: #eab308; --danger: #ef4444;
+      --text: #e2e8f0; --muted: #64748b; --dim: #94a3b8;
+      --font: 'JetBrains Mono', monospace;
+    }
+    html, body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; line-height: 1.6; }
+
+    /* Layout */
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+    .header { border-bottom: 1px solid var(--border); padding: 1rem 2rem; background: var(--bg-card); }
+    .logo { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+    .logo span { color: var(--cyan); }
+    .logo-sub { font-size: 0.63rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+    .main { flex: 1; padding: 2rem; max-width: 1100px; margin: 0 auto; width: 100%; }
+
+    /* Cards */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+    .card-title { font-size: 0.63rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+
+    /* API Key */
+    .api-row { display: flex; gap: 0.5rem; align-items: center; }
+    .api-input { flex: 1; background: var(--bg-card2); border: 1px solid var(--border); color: var(--text); font-family: var(--font); font-size: 0.75rem; padding: 0.6rem 0.8rem; border-radius: 6px; outline: none; transition: border-color 0.15s; }
+    .api-input:focus { border-color: var(--accent); }
+    .api-hint { font-size: 0.63rem; color: var(--muted); margin-top: 0.4rem; }
+    .api-hint a { color: var(--cyan); text-decoration: none; }
+    .api-hint a:hover { text-decoration: underline; }
+    .eye-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem; padding: 0 0.25rem; }
+
+    /* Games */
+    .game-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .game-btn { font-family: var(--font); font-size: 0.72rem; font-weight: 600; letter-spacing: 1px; padding: 0.45rem 0.9rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card2); color: var(--dim); cursor: pointer; transition: all 0.15s; }
+    .game-btn:hover { border-color: var(--accent); color: var(--text); }
+    .game-btn.active { border-color: var(--accent); background: var(--accent-glow); color: #fff; box-shadow: 0 0 12px var(--accent-glow); }
+
+    /* Upload */
+    .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 3rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg-card2); }
+    .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: var(--accent-glow); }
+    .upload-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .upload-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .upload-sub { font-size: 0.68rem; color: var(--muted); }
+    .upload-file { margin-top: 0.75rem; font-size: 0.75rem; color: var(--cyan); font-weight: 500; }
+
+    /* Buttons */
+    .btn-primary { width: 100%; padding: 0.85rem; font-family: var(--font); font-size: 0.82rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; margin-top: 1rem; }
+    .btn-primary:hover:not(:disabled) { background: #818cf8; box-shadow: 0 0 20px var(--accent-glow); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-secondary { font-family: var(--font); font-size: 0.68rem; padding: 0.4rem 0.9rem; background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 6px; cursor: pointer; letter-spacing: 1px; transition: all 0.15s; }
+    .btn-secondary:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* Processing */
+    .processing { text-align: center; padding: 5rem 2rem; }
+    .spinner { width: 44px; height: 44px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .proc-title { font-size: 1rem; font-weight: 700; color: var(--cyan); margin-bottom: 0.4rem; }
+    .proc-sub { font-size: 0.7rem; color: var(--muted); margin-bottom: 1.5rem; letter-spacing: 1px; }
+    .progress-wrap { width: 100%; max-width: 420px; margin: 0 auto 0.5rem; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan)); border-radius: 3px; transition: width 0.35s ease; }
+    .progress-pct { font-size: 0.68rem; color: var(--muted); }
+
+    /* Dashboard */
+    .dash-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+    .rank-badge { display: inline-flex; align-items: center; padding: 0.35rem 0.9rem; border-radius: 999px; font-size: 0.82rem; font-weight: 700; letter-spacing: 1px; border: 1px solid currentColor; }
+    .rank-desc { font-size: 0.68rem; color: var(--muted); margin-top: 0.35rem; max-width: 480px; }
+
+    /* Scores */
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+    .score-card { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+    .score-label { font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+    .score-val { font-size: 1.8rem; font-weight: 700; line-height: 1; margin-bottom: 0.4rem; }
+    .score-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.7s ease; }
+
+    /* Two col */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Lists */
+    .b-list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+    .b-list li { font-size: 0.76rem; color: var(--dim); padding-left: 1rem; position: relative; line-height: 1.55; }
+    .b-list li::before { content: '▸'; position: absolute; left: 0; }
+    .b-list.str li::before { color: var(--success); }
+    .b-list.weak li::before { color: var(--danger); }
+    .b-list.tips li::before { color: var(--cyan); }
+
+    /* Coaching */
+    .coaching-text { font-size: 0.78rem; color: var(--dim); line-height: 1.85; }
+
+    /* Drills */
+    .drill-list { display: flex; flex-direction: column; gap: 0.65rem; }
+    .drill { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 1rem; }
+    .drill-name { font-size: 0.78rem; font-weight: 600; color: var(--accent); margin-bottom: 0.2rem; }
+    .drill-desc { font-size: 0.72rem; color: var(--dim); line-height: 1.6; margin-bottom: 0.2rem; }
+    .drill-dur { font-size: 0.62rem; color: var(--cyan); letter-spacing: 1px; }
+
+    /* Frame grid */
+    .frame-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.5rem; }
+    .frame-cell { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; position: relative; }
+    .frame-cell img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; }
+    .frame-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 0.2rem 0.4rem; background: rgba(0,0,0,0.8); display: flex; justify-content: space-between; align-items: center; }
+    .frame-ts { font-size: 0.52rem; color: var(--muted); }
+    .frame-q { font-size: 0.58rem; font-weight: 700; }
+
+    /* Radar */
+    .radar-wrap { display: flex; justify-content: center; }
+
+    /* Error */
+    .error-box { background: rgba(239,68,68,0.1); border: 1px solid var(--danger); border-radius: 8px; padding: 0.85rem 1rem; color: var(--danger); font-size: 0.76rem; margin-top: 0.75rem; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="logo">Aim<span>Sense</span> AI</div>
+    <div class="logo-sub">FPS Aim Analyzer · Powered by Claude Vision · Runs in your browser</div>
+  </header>
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const FRAME_COUNT = 30;
+const BATCH_SIZE  = 5;
+const API_URL     = 'https://api.anthropic.com/v1/messages';
+const MODEL       = 'claude-sonnet-4-6';
+
+const GAMES = [
+  { id: 'VALORANT',           label: 'VALORANT'  },
+  { id: 'CS2',                label: 'CS2'        },
+  { id: 'Apex Legends',       label: 'APEX'       },
+  { id: 'Overwatch 2',        label: 'OW2'        },
+  { id: 'Rainbow Six Siege',  label: 'R6'         },
+  { id: 'Warzone',            label: 'WARZONE'    },
+  { id: 'Fortnite',           label: 'FORTNITE'   },
+];
+
+const RANK_COLORS = {
+  Iron: '#a8a8b3', Bronze: '#cd7f32', Silver: '#c0c0c0', Gold: '#ffd700',
+  Platinum: '#e5e4e2', Diamond: '#b9f2ff', Immortal: '#ff4655', Radiant: '#fffb6e',
+};
+
+const FRAME_SYSTEM = `You are a professional FPS aim analyst specializing in crosshair placement, movement mechanics, and combat positioning. You analyze individual gameplay frames with technical precision. Always respond with valid JSON only.`;
+
+const COACH_SYSTEM = `You are an elite FPS aim coach with 10+ years training professional esports athletes in VALORANT, CS2, Apex Legends, Overwatch 2, Rainbow Six Siege, Warzone, and Fortnite. You provide detailed, actionable, data-driven coaching reports. Always respond with valid JSON only.`;
+
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+  phase:     'setup',
+  game:      'VALORANT',
+  file:      null,
+  apiKey:    localStorage.getItem('aimsense_key') || '',
+  showKey:   false,
+  progress:  0,
+  stepLabel: '',
+  frames:    [],
+  analyses:  [],
+  report:    null,
+  error:     null,
+};
+
+function set(patch) { Object.assign(S, patch); render(); }
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function scoreColor(v) {
+  return v >= 70 ? '#22c55e' : v >= 40 ? '#eab308' : '#ef4444';
+}
+
+// ── Frame Extraction (browser canvas) ─────────────────────────────────────
+function extractFrames(file, onPct) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.preload = 'auto';
+    video.src = URL.createObjectURL(file);
+    video.addEventListener('error', () => reject(new Error('Could not load video file.')));
+    video.addEventListener('loadedmetadata', async () => {
+      const dur = video.duration;
+      const canvas = document.createElement('canvas');
+      canvas.width  = 512;
+      canvas.height = Math.round(512 * video.videoHeight / video.videoWidth) || 288;
+      const ctx = canvas.getContext('2d');
+      const frames = [];
+      for (let i = 0; i < FRAME_COUNT; i++) {
+        video.currentTime = (dur / (FRAME_COUNT + 1)) * (i + 1);
+        await new Promise(r => video.addEventListener('seeked', r, { once: true }));
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        frames.push({
+          index: i,
+          timestamp: video.currentTime.toFixed(2),
+          base64: canvas.toDataURL('image/jpeg', 0.82).split(',')[1],
+        });
+        onPct(Math.round(((i + 1) / FRAME_COUNT) * 35));
+      }
+      URL.revokeObjectURL(video.src);
+      resolve(frames);
+    });
+  });
+}
+
+// ── Anthropic API ──────────────────────────────────────────────────────────
+async function callClaude(body) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': S.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `API error ${res.status}`);
+  }
+  return res.json();
+}
+
+async function analyzeFrame(frame) {
+  try {
+    const data = await callClaude({
+      model: MODEL, max_tokens: 400, system: FRAME_SYSTEM,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: frame.base64 } },
+        { type: 'text', text: `Analyze this ${S.game} gameplay screenshot for aim quality. Return ONLY valid JSON:\n{"crosshair_placement":"head|body|floor|wall|sky|off_screen|pre_aim","deviation":<0-100>,"situation_type":"peeking|holding_angle|spraying|tapping|idle|movement|clearing","quality_rating":<1-10>,"notes":"<one sentence>"}` },
+      ]}],
+    });
+    const m = data.content[0].text.trim().match(/\{[\s\S]*\}/);
+    if (m) return { ...JSON.parse(m[0]), frame_index: frame.index, timestamp: frame.timestamp };
+  } catch {}
+  return { crosshair_placement: 'body', deviation: 50, situation_type: 'idle', quality_rating: 5, notes: 'Analysis unavailable.', frame_index: frame.index, timestamp: frame.timestamp };
+}
+
+async function analyzeAllFrames(frames, onPct) {
+  const results = [];
+  for (let i = 0; i < frames.length; i += BATCH_SIZE) {
+    const batch = frames.slice(i, i + BATCH_SIZE);
+    const res = await Promise.all(batch.map(f => analyzeFrame(f)));
+    results.push(...res);
+    onPct(Math.round(35 + ((i + BATCH_SIZE) / frames.length) * 45));
+  }
+  return results;
+}
+
+async function generateReport(analyses) {
+  const avgQ   = analyses.reduce((s, a) => s + (a.quality_rating || 5), 0) / analyses.length;
+  const avgDev = analyses.reduce((s, a) => s + (a.deviation || 50),     0) / analyses.length;
+  const hsRate = ((analyses.filter(a => a.crosshair_placement === 'head').length / analyses.length) * 100).toFixed(1);
+  const placements = analyses.reduce((acc, a) => { acc[a.crosshair_placement] = (acc[a.crosshair_placement] || 0) + 1; return acc; }, {});
+  const situations  = analyses.reduce((acc, a) => { acc[a.situation_type]     = (acc[a.situation_type]     || 0) + 1; return acc; }, {});
+
+  const data = await callClaude({
+    model: MODEL, max_tokens: 2000, system: COACH_SYSTEM,
+    messages: [{ role: 'user', content:
+      `Generate a coaching report for this ${S.game} player based on ${FRAME_COUNT} frames.\n\nFRAMES:\n${JSON.stringify(analyses, null, 2)}\n\nSTATS:\n- Avg quality: ${avgQ.toFixed(1)}/10\n- Avg deviation: ${avgDev.toFixed(1)}/100\n- Headshot rate: ${hsRate}%\n- Placements: ${JSON.stringify(placements)}\n- Situations: ${JSON.stringify(situations)}\n\nReturn ONLY this JSON:\n{"rank_tier":"Iron|Bronze|Silver|Gold|Platinum|Diamond|Immortal|Radiant","rank_description":"<1 sentence>","overall_score":<0-100>,"crosshair_score":<0-100>,"tracking_score":<0-100>,"consistency_score":<0-100>,"reflex_score":<0-100>,"positioning_score":<0-100>,"strengths":["<s1>","<s2>","<s3>"],"weaknesses":["<w1>","<w2>","<w3>"],"coaching_analysis":"<3-4 sentences>","recommended_drills":[{"name":"<n>","description":"<d>","duration":"<t>"},{"name":"<n>","description":"<d>","duration":"<t>"},{"name":"<n>","description":"<d>","duration":"<t>"}],"quick_tips":["<t1>","<t2>","<t3>","<t4>","<t5>"]}` }],
+  });
+  const m = data.content[0].text.trim().match(/\{[\s\S]*\}/);
+  if (m) return JSON.parse(m[0]);
+  throw new Error('Invalid coaching response format.');
+}
+
+// ── Analysis Runner ────────────────────────────────────────────────────────
+async function runAnalysis() {
+  if (!S.file || !S.apiKey.trim()) return;
+  localStorage.setItem('aimsense_key', S.apiKey);
+  set({ phase: 'processing', progress: 2, stepLabel: 'Loading video…', error: null });
+
+  try {
+    const frames = await extractFrames(S.file, pct => set({ progress: pct, stepLabel: `Extracting frames… ${pct}%` }));
+    set({ frames, progress: 35, stepLabel: `Analyzing ${FRAME_COUNT} frames with Claude Vision…` });
+
+    const analyses = await analyzeAllFrames(frames, pct => {
+      const done = Math.round(((pct - 35) / 45) * FRAME_COUNT);
+      set({ progress: pct, stepLabel: `Analyzing frames… ${done}/${FRAME_COUNT}` });
+    });
+    set({ analyses, progress: 82, stepLabel: 'Generating coaching report…' });
+
+    const report = await generateReport(analyses);
+    set({ progress: 100, stepLabel: 'Done!' });
+    setTimeout(() => set({ phase: 'results', report }), 400);
+  } catch (err) {
+    set({ phase: 'setup', error: err.message });
+  }
+}
+
+// ── Radar SVG ──────────────────────────────────────────────────────────────
+function radarSVG(r) {
+  const axes = ['Crosshair','Tracking','Consistency','Reflex','Positioning'];
+  const vals = [r.crosshair_score, r.tracking_score, r.consistency_score, r.reflex_score, r.positioning_score];
+  const N = axes.length, cx = 150, cy = 155, rad = 105;
+
+  const pt = (i, v) => {
+    const a = (Math.PI * 2 * i / N) - Math.PI / 2;
+    return [(cx + (v / 100) * rad * Math.cos(a)).toFixed(1), (cy + (v / 100) * rad * Math.sin(a)).toFixed(1)];
+  };
+
+  let grid = '', axLines = '', labels = '';
+  for (let lvl = 1; lvl <= 5; lvl++) {
+    const pts = Array.from({length: N}, (_, i) => {
+      const a = (Math.PI * 2 * i / N) - Math.PI / 2;
+      return `${(cx + (lvl/5)*rad*Math.cos(a)).toFixed(1)},${(cy + (lvl/5)*rad*Math.sin(a)).toFixed(1)}`;
+    }).join(' ');
+    grid += `<polygon points="${pts}" fill="none" stroke="#1e1e30" stroke-width="1"/>`;
+  }
+  for (let i = 0; i < N; i++) {
+    const [px, py] = pt(i, 100);
+    axLines += `<line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="#1e1e30" stroke-width="1"/>`;
+    const a = (Math.PI * 2 * i / N) - Math.PI / 2;
+    const lx = (cx + (rad + 22) * Math.cos(a)).toFixed(1);
+    const ly = (cy + (rad + 22) * Math.sin(a)).toFixed(1);
+    labels += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="#64748b" font-size="10" font-family="JetBrains Mono,monospace">${axes[i]}</text>`;
+  }
+
+  const dataPts = vals.map((v, i) => pt(i, v).join(',')).join(' ');
+  const dots = vals.map((v, i) => { const [px, py] = pt(i, v); return `<circle cx="${px}" cy="${py}" r="3" fill="#6366f1"/>`; }).join('');
+
+  return `<svg width="300" height="310" viewBox="0 0 300 310">${grid}${axLines}<polygon points="${dataPts}" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="2"/>${dots}${labels}</svg>`;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  const main = document.getElementById('main');
+  if (S.phase === 'setup')      main.innerHTML = renderSetup();
+  else if (S.phase === 'processing') main.innerHTML = renderProcessing();
+  else if (S.phase === 'results')    main.innerHTML = renderResults();
+  bindEvents();
+}
+
+function renderSetup() {
+  const games = GAMES.map(g =>
+    `<button class="game-btn${S.game === g.id ? ' active' : ''}" data-game="${g.id}">${g.label}</button>`
+  ).join('');
+  const fname = S.file ? `✓ ${esc(S.file.name)} (${(S.file.size/1024/1024).toFixed(1)} MB)` : '';
+
+  return `
+    <div class="card">
+      <div class="card-title">Anthropic API Key</div>
+      <div class="api-row">
+        <input class="api-input" id="apiKey" type="${S.showKey ? 'text' : 'password'}"
+          placeholder="sk-ant-api03-…" value="${esc(S.apiKey)}" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="toggleKey">${S.showKey ? '🙈' : '👁'}</button>
+      </div>
+      <div class="api-hint">
+        Get a free key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.
+        Stored only in your browser — never sent anywhere except directly to Anthropic.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Select Game</div>
+      <div class="game-grid">${games}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Upload Gameplay Clip</div>
+      <div class="upload-zone" id="dropZone">
+        <div class="upload-icon">🎮</div>
+        <div class="upload-title">${S.file ? 'Change video' : 'Drop your clip here'}</div>
+        <div class="upload-sub">MP4, MOV, AVI · Processed entirely in your browser — nothing is uploaded</div>
+        ${fname ? `<div class="upload-file">${fname}</div>` : ''}
+        <input type="file" id="fileInput" accept="video/*" style="display:none" />
+      </div>
+    </div>
+
+    ${S.error ? `<div class="error-box">⚠ ${esc(S.error)}</div>` : ''}
+    <button class="btn-primary" id="analyzeBtn" ${S.file && S.apiKey.trim() ? '' : 'disabled'}>
+      Analyze Gameplay →
+    </button>
+  `;
+}
+
+function renderProcessing() {
+  return `
+    <div class="processing">
+      <div class="spinner"></div>
+      <div class="proc-title">${esc(S.stepLabel)}</div>
+      <div class="proc-sub">Analyzing ${FRAME_COUNT} frames — may take 60–90 seconds</div>
+      <div class="progress-wrap">
+        <div class="progress-fill" style="width:${S.progress}%"></div>
+      </div>
+      <div class="progress-pct">${S.progress}%</div>
+    </div>
+  `;
+}
+
+function renderResults() {
+  const r = S.report;
+  const rc = RANK_COLORS[r.rank_tier] || '#6366f1';
+
+  const subScores = [
+    { label: 'Crosshair',    val: r.crosshair_score    },
+    { label: 'Tracking',     val: r.tracking_score     },
+    { label: 'Consistency',  val: r.consistency_score  },
+    { label: 'Reflex',       val: r.reflex_score       },
+    { label: 'Positioning',  val: r.positioning_score  },
+  ].map(s => `
+    <div class="score-card">
+      <div class="score-label">${s.label}</div>
+      <div class="score-val" style="color:${scoreColor(s.val)}">${s.val}</div>
+      <div class="score-bar"><div class="score-bar-fill" style="width:${s.val}%;background:${scoreColor(s.val)}"></div></div>
+    </div>
+  `).join('');
+
+  const drills = (r.recommended_drills || []).map(d => `
+    <div class="drill">
+      <div class="drill-name">${esc(d.name)}</div>
+      <div class="drill-desc">${esc(d.description)}</div>
+      <div class="drill-dur">⏱ ${esc(d.duration)}</div>
+    </div>
+  `).join('');
+
+  const frameCells = S.frames.map(f => {
+    const a = S.analyses.find(x => x.frame_index === f.index);
+    const q = a?.quality_rating ?? 5;
+    return `
+      <div class="frame-cell">
+        <img src="data:image/jpeg;base64,${f.base64}" alt="Frame ${f.index + 1}" loading="lazy" />
+        <div class="frame-overlay">
+          <span class="frame-ts">${f.timestamp}s</span>
+          <span class="frame-q" style="color:${scoreColor(q * 10)}">${q}/10</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="dash-header">
+      <div>
+        <div style="font-size:0.62rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:0.4rem">
+          ${esc(S.game)} · ${FRAME_COUNT} Frames Analyzed
+        </div>
+        <span class="rank-badge" style="color:${rc};border-color:${rc};background:${rc}18">${esc(r.rank_tier)}</span>
+        <div class="rank-desc">${esc(r.rank_description)}</div>
+      </div>
+      <button class="btn-secondary" id="resetBtn">↩ New Analysis</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Overall Score</div>
+      <div class="score-card" style="border-color:${scoreColor(r.overall_score)}">
+        <div class="score-label">Overall</div>
+        <div class="score-val" style="color:${scoreColor(r.overall_score)};font-size:2.8rem">${r.overall_score}</div>
+        <div class="score-bar"><div class="score-bar-fill" style="width:${r.overall_score}%;background:${scoreColor(r.overall_score)}"></div></div>
+      </div>
+      <div class="score-grid">${subScores}</div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:1rem">
+      <div class="card">
+        <div class="card-title">Performance Radar</div>
+        <div class="radar-wrap">${radarSVG(r)}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Coaching Analysis</div>
+        <p class="coaching-text">${esc(r.coaching_analysis)}</p>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:1rem">
+      <div class="card">
+        <div class="card-title">Strengths</div>
+        <ul class="b-list str">${(r.strengths || []).map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Weaknesses</div>
+        <ul class="b-list weak">${(r.weaknesses || []).map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Recommended Drills</div>
+      <div class="drill-list">${drills}</div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-title">Quick Tips</div>
+      <ul class="b-list tips">${(r.quick_tips || []).map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Frame-by-Frame Analysis (${S.frames.length} frames)</div>
+      <div class="frame-grid">${frameCells}</div>
+    </div>
+  `;
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────
+function bindEvents() {
+  const apiInput = document.getElementById('apiKey');
+  if (apiInput) apiInput.addEventListener('input', e => { S.apiKey = e.target.value; updateAnalyzeBtn(); });
+
+  const toggleKey = document.getElementById('toggleKey');
+  if (toggleKey) toggleKey.addEventListener('click', () => set({ showKey: !S.showKey }));
+
+  document.querySelectorAll('.game-btn').forEach(btn =>
+    btn.addEventListener('click', () => set({ game: btn.dataset.game }))
+  );
+
+  const dropZone  = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  if (dropZone && fileInput) {
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag');
+      const f = e.dataTransfer.files[0];
+      if (f && f.type.startsWith('video/')) set({ file: f });
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) set({ file: e.target.files[0] }); });
+  }
+
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalysis);
+
+  const resetBtn = document.getElementById('resetBtn');
+  if (resetBtn) resetBtn.addEventListener('click', () =>
+    set({ phase: 'setup', file: null, frames: [], analyses: [], report: null, error: null, progress: 0 })
+  );
+}
+
+function updateAnalyzeBtn() {
+  const btn = document.getElementById('analyzeBtn');
+  if (btn) btn.disabled = !(S.file && S.apiKey.trim());
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
